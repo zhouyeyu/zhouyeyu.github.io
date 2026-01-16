@@ -2,24 +2,24 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Posts on YuZhouye&#39;s Blog</title>
-    <link>http://localhost:1313/posts/</link>
+    <link>https://zhouyeyu.github.io/posts/</link>
     <description>Recent content in Posts on YuZhouye&#39;s Blog</description>
     <generator>Hugo -- 0.154.5</generator>
     <language>en-us</language>
     <lastBuildDate>Fri, 16 Jan 2026 21:37:02 +0800</lastBuildDate>
-    <atom:link href="http://localhost:1313/posts/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="https://zhouyeyu.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Test</title>
-      <link>http://localhost:1313/posts/test-copy/</link>
+      <link>https://zhouyeyu.github.io/posts/test-copy/</link>
       <pubDate>Fri, 16 Jan 2026 21:37:02 +0800</pubDate>
-      <guid>http://localhost:1313/posts/test-copy/</guid>
+      <guid>https://zhouyeyu.github.io/posts/test-copy/</guid>
       <description></description>
     </item>
     <item>
       <title>Test</title>
-      <link>http://localhost:1313/posts/test/</link>
+      <link>https://zhouyeyu.github.io/posts/test/</link>
       <pubDate>Fri, 16 Jan 2026 21:37:02 +0800</pubDate>
-      <guid>http://localhost:1313/posts/test/</guid>
+      <guid>https://zhouyeyu.github.io/posts/test/</guid>
       <description>&lt;h1 id=&#34;test-blog1&#34;&gt;test blog1&lt;/h1&gt;
 &lt;h2 id=&#34;test&#34;&gt;test&lt;/h2&gt;</description>
     </item>
