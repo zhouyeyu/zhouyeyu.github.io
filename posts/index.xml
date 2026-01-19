@@ -2,26 +2,35 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Posts on YuZhouye&#39;s Blog</title>
-    <link>https://zhouyeyu.github.io/posts/</link>
+    <link>http://localhost:1313/posts/</link>
     <description>Recent content in Posts on YuZhouye&#39;s Blog</description>
     <generator>Hugo -- 0.154.5</generator>
     <language>en-us</language>
     <lastBuildDate>Fri, 16 Jan 2026 21:37:02 +0800</lastBuildDate>
-    <atom:link href="https://zhouyeyu.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="http://localhost:1313/posts/index.xml" rel="self" type="application/rss+xml" />
     <item>
-      <title>Test</title>
-      <link>https://zhouyeyu.github.io/posts/test-copy/</link>
+      <title>Hugo部署github Pages</title>
+      <link>http://localhost:1313/posts/test/</link>
       <pubDate>Fri, 16 Jan 2026 21:37:02 +0800</pubDate>
-      <guid>https://zhouyeyu.github.io/posts/test-copy/</guid>
-      <description></description>
+      <guid>http://localhost:1313/posts/test/</guid>
+      <description>&lt;h1 id=&#34;to-be-done&#34;&gt;To be done😐&lt;/h1&gt;</description>
     </item>
     <item>
-      <title>Test</title>
-      <link>https://zhouyeyu.github.io/posts/test/</link>
-      <pubDate>Fri, 16 Jan 2026 21:37:02 +0800</pubDate>
-      <guid>https://zhouyeyu.github.io/posts/test/</guid>
-      <description>&lt;h1 id=&#34;test-blog1&#34;&gt;test blog1&lt;/h1&gt;
-&lt;h2 id=&#34;test&#34;&gt;test&lt;/h2&gt;</description>
+      <title>PyTorch FSDP2 对比 FSDP1的升级</title>
+      <link>http://localhost:1313/posts/pytorch-fsdp2-%E5%AF%B9%E6%AF%94-fsdp1%E7%9A%84%E5%8D%87%E7%BA%A7/</link>
+      <pubDate>Thu, 18 Dec 2025 21:37:02 +0800</pubDate>
+      <guid>http://localhost:1313/posts/pytorch-fsdp2-%E5%AF%B9%E6%AF%94-fsdp1%E7%9A%84%E5%8D%87%E7%BA%A7/</guid>
+      <description>&lt;h2 id=&#34;概述&#34;&gt;概述&lt;/h2&gt;
+&lt;p&gt;FSDP2 与FSDP1 保持了相同的并行思路，将参数、梯度等分块，在需要时all-gather聚集到一起，用完即刻丢弃。通过forward 和 backward hook自动处理相应的shard和unshard操作，节省显存，同时通过prefetch进一步掩盖通信和计算的耗时，提升性能。但是FSDP2和FSDP1也存在一些diff，甚至接口也不再向后兼容。&lt;/p&gt;
+&lt;h2 id=&#34;fsdp2梳理及更新点&#34;&gt;FSDP2梳理及更新点&lt;/h2&gt;
+&lt;p&gt;官方的描述是这样的：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Comparing with FSDP1, FSDP2 has following advantages:
+Representing sharded parameters as DTensor sharded on dim-i, allowing for easy manipulation of individual parameters, communication-free sharded state dicts, and a simpler meta-device initialization flow.
+Improving memory management system that achieves lower and deterministic GPU memory by avoiding recordStream (doc) and does so without any CPU synchronization.
+Offering a tensor subclass extension point to customize the all-gather, e.g. for float8 all-gather for float8 linears (doc), and NF4 for QLoRA (doc)
+Mixing frozen and non-frozen parameters can in the same communication group without using extra memory.
+主要梳理下DTensor以及recordStream相关的改动。&lt;/p&gt;</description>
     </item>
   </channel>
 </rss>
