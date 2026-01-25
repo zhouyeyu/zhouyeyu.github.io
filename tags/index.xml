@@ -6,27 +6,48 @@
     <description>Recent content in Tags on YuZhouye&#39;s Blog</description>
     <generator>Hugo -- 0.154.5</generator>
     <language>en-us</language>
-    <lastBuildDate>Thu, 18 Dec 2025 21:37:02 +0800</lastBuildDate>
+    <lastBuildDate>Mon, 05 Jan 2026 23:11:11 +0800</lastBuildDate>
     <atom:link href="https://zhouyeyu.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
     <item>
-      <title>FSDP2</title>
-      <link>https://zhouyeyu.github.io/tags/fsdp2/</link>
-      <pubDate>Thu, 18 Dec 2025 21:37:02 +0800</pubDate>
-      <guid>https://zhouyeyu.github.io/tags/fsdp2/</guid>
+      <title>Pr解读</title>
+      <link>https://zhouyeyu.github.io/tags/pr%E8%A7%A3%E8%AF%BB/</link>
+      <pubDate>Mon, 05 Jan 2026 23:11:11 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/tags/pr%E8%A7%A3%E8%AF%BB/</guid>
       <description></description>
     </item>
     <item>
       <title>Pytorch</title>
       <link>https://zhouyeyu.github.io/tags/pytorch/</link>
-      <pubDate>Thu, 18 Dec 2025 21:37:02 +0800</pubDate>
+      <pubDate>Mon, 05 Jan 2026 23:11:11 +0800</pubDate>
       <guid>https://zhouyeyu.github.io/tags/pytorch/</guid>
       <description></description>
     </item>
     <item>
       <title>Tech</title>
       <link>https://zhouyeyu.github.io/tags/tech/</link>
-      <pubDate>Thu, 18 Dec 2025 21:37:02 +0800</pubDate>
+      <pubDate>Mon, 05 Jan 2026 23:11:11 +0800</pubDate>
       <guid>https://zhouyeyu.github.io/tags/tech/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Record_stream</title>
+      <link>https://zhouyeyu.github.io/tags/record_stream/</link>
+      <pubDate>Tue, 30 Dec 2025 23:41:00 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/tags/record_stream/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>DTensor</title>
+      <link>https://zhouyeyu.github.io/tags/dtensor/</link>
+      <pubDate>Tue, 23 Dec 2025 22:37:00 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/tags/dtensor/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>FSDP2</title>
+      <link>https://zhouyeyu.github.io/tags/fsdp2/</link>
+      <pubDate>Thu, 18 Dec 2025 21:37:02 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/tags/fsdp2/</guid>
       <description></description>
     </item>
   </channel>

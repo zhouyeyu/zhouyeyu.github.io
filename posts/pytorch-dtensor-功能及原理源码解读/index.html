@@ -1,0 +1,214 @@
+<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>PyTorch DTensor 功能及原理源码解读 | YuZhouye's Blog</title><meta name=keywords content="Tech,Pytorch,DTensor"><meta name=description content='简介
+PyTorch FSDP2 对比 FSDP1的升级上一篇文章梳理了FSDP2，于是顺着梳理下DTensor相关的内容。在DTensor出现之前，Pytorch 中的分布式张量主要依赖于 torch.distributed 模块下的DDP、 FSDP及第三方库如DeepSpeed、Megatron-LM 提供的并行能力。使用这些框架往往需要在代码中不断地插入通信(如all-gather、all-reduce等)，有了DTensor，降低用户手动管理通信操作的成本，进一步提高易用性，也是与torch的理念相匹配的。
+DTensor基本用法
+基本属性
+DTensor是torch.Tensor的子类，因此可以像普通tensor一样操作它。DTensor通过DeviceMesh建立各个rank之间的关系，并通过Placement描述当前的状态，主要有三个Placement：Shard、Replicate和Partial
+
+
+Replicate：每个rank拥有相同的完整参数；
+
+
+Shard：每个rank只持有部份分块后的参数；
+
+
+Partial：每个rank只持有部份数据，目前是等待all-reduce状态
+
+
+三个属性之间的转换关系：
+
+torch官方罗列了几个转换关系：
+
+
+Shard(dim) -> Replicate(): all_gather
+
+
+Shard(src_dim) -> Shard(dst_dim): all_to_all
+
+
+Replicate() -> Shard(dim): local chunking (i.e. torch.chunk)
+
+
+Partial() -> Replicate(): all_reduce
+
+
+Partial() -> Shard(dim): reduce_scatter
+
+
+API：
+一个DTensor可以由如下API创建：
+
+distribute_tensor() 接口
+
+local_tensor = torch.randn(8, 16, device=f"cuda:{rank}")
+
+dtensor_shard = distribute_tensor(
+    local_tensor,
+    device_mesh=mesh,
+    placements=[Shard(0)],
+)
+
+from local tensor
+
+local_tensor = torch.tensor([[1, 2], [3, 4]])
+dtensor_shard = DTensor(
+    local_tensor,
+    device_mesh=dist.DeviceMesh("cuda", list(range(world_size))),
+    placements=[dist.Placement("shard", dim=0)]  # 沿第0维分片
+)
+或者
+local_tensor = torch.tensor([1, 2, 3])
+dtensor = local_tensor.to_dtensor(
+    device_mesh=dist.DeviceMesh("cuda", [0,1]),
+    placements=[dist.Placement("replicate")]
+)
+
+工厂函数
+
+dtensor_ones = DTensor.ones(
+    (2, 4),
+    device_mesh=dist.DeviceMesh("cuda", list(range(world_size))),
+    placements=[dist.Placement("shard", dim=1)]
+)
+创建好DTensor之后，就可以把DTensor当作普通的Tensor对象去操作和运算，DTensor会为你在必要时插入所需要的通信操作。'><meta name=author content="YuZhouye"><link rel=canonical href=https://zhouyeyu.github.io/posts/pytorch-dtensor-%E5%8A%9F%E8%83%BD%E5%8F%8A%E5%8E%9F%E7%90%86%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/><link crossorigin=anonymous href=/assets/css/stylesheet.da3211e5ef867bf2b75fd5a6515cfed7195c011e8ab735694e203810a827097b.css integrity="sha256-2jIR5e+Ge/K3X9WmUVz+1xlcAR6KtzVpTiA4EKgnCXs=" rel="preload stylesheet" as=style><link rel=icon href=https://zhouyeyu.github.io/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://zhouyeyu.github.io/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://zhouyeyu.github.io/favicon-32x32.png><link rel=apple-touch-icon href=https://zhouyeyu.github.io/apple-touch-icon.png><link rel=mask-icon href=https://zhouyeyu.github.io/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://zhouyeyu.github.io/posts/pytorch-dtensor-%E5%8A%9F%E8%83%BD%E5%8F%8A%E5%8E%9F%E7%90%86%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}@media(prefers-color-scheme:light){.list::-webkit-scrollbar-thumb{border-color:var(--code-bg)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://zhouyeyu.github.io/posts/pytorch-dtensor-%E5%8A%9F%E8%83%BD%E5%8F%8A%E5%8E%9F%E7%90%86%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/"><meta property="og:site_name" content="YuZhouye's Blog"><meta property="og:title" content="PyTorch DTensor 功能及原理源码解读"><meta property="og:description" content='简介 PyTorch FSDP2 对比 FSDP1的升级上一篇文章梳理了FSDP2，于是顺着梳理下DTensor相关的内容。在DTensor出现之前，Pytorch 中的分布式张量主要依赖于 torch.distributed 模块下的DDP、 FSDP及第三方库如DeepSpeed、Megatron-LM 提供的并行能力。使用这些框架往往需要在代码中不断地插入通信(如all-gather、all-reduce等)，有了DTensor，降低用户手动管理通信操作的成本，进一步提高易用性，也是与torch的理念相匹配的。
+DTensor基本用法 基本属性 DTensor是torch.Tensor的子类，因此可以像普通tensor一样操作它。DTensor通过DeviceMesh建立各个rank之间的关系，并通过Placement描述当前的状态，主要有三个Placement：Shard、Replicate和Partial
+Replicate：每个rank拥有相同的完整参数；
+Shard：每个rank只持有部份分块后的参数；
+Partial：每个rank只持有部份数据，目前是等待all-reduce状态
+三个属性之间的转换关系：
+torch官方罗列了几个转换关系：
+Shard(dim) -> Replicate(): all_gather
+Shard(src_dim) -> Shard(dst_dim): all_to_all
+Replicate() -> Shard(dim): local chunking (i.e. torch.chunk)
+Partial() -> Replicate(): all_reduce
+Partial() -> Shard(dim): reduce_scatter
+API： 一个DTensor可以由如下API创建：
+distribute_tensor() 接口 local_tensor = torch.randn(8, 16, device=f"cuda:{rank}") dtensor_shard = distribute_tensor( local_tensor, device_mesh=mesh, placements=[Shard(0)], ) from local tensor local_tensor = torch.tensor([[1, 2], [3, 4]]) dtensor_shard = DTensor( local_tensor, device_mesh=dist.DeviceMesh("cuda", list(range(world_size))), placements=[dist.Placement("shard", dim=0)] # 沿第0维分片 ) 或者 local_tensor = torch.tensor([1, 2, 3]) dtensor = local_tensor.to_dtensor( device_mesh=dist.DeviceMesh("cuda", [0,1]), placements=[dist.Placement("replicate")] ) 工厂函数 dtensor_ones = DTensor.ones( (2, 4), device_mesh=dist.DeviceMesh("cuda", list(range(world_size))), placements=[dist.Placement("shard", dim=1)] ) 创建好DTensor之后，就可以把DTensor当作普通的Tensor对象去操作和运算，DTensor会为你在必要时插入所需要的通信操作。'><meta property="og:locale" content="en-us"><meta property="og:type" content="article"><meta property="article:section" content="posts"><meta property="article:published_time" content="2025-12-23T22:37:00+08:00"><meta property="article:modified_time" content="2025-12-23T22:37:00+08:00"><meta property="article:tag" content="Tech"><meta property="article:tag" content="Pytorch"><meta property="article:tag" content="DTensor"><meta name=twitter:card content="summary"><meta name=twitter:title content="PyTorch DTensor 功能及原理源码解读"><meta name=twitter:description content='简介
+PyTorch FSDP2 对比 FSDP1的升级上一篇文章梳理了FSDP2，于是顺着梳理下DTensor相关的内容。在DTensor出现之前，Pytorch 中的分布式张量主要依赖于 torch.distributed 模块下的DDP、 FSDP及第三方库如DeepSpeed、Megatron-LM 提供的并行能力。使用这些框架往往需要在代码中不断地插入通信(如all-gather、all-reduce等)，有了DTensor，降低用户手动管理通信操作的成本，进一步提高易用性，也是与torch的理念相匹配的。
+DTensor基本用法
+基本属性
+DTensor是torch.Tensor的子类，因此可以像普通tensor一样操作它。DTensor通过DeviceMesh建立各个rank之间的关系，并通过Placement描述当前的状态，主要有三个Placement：Shard、Replicate和Partial
+
+
+Replicate：每个rank拥有相同的完整参数；
+
+
+Shard：每个rank只持有部份分块后的参数；
+
+
+Partial：每个rank只持有部份数据，目前是等待all-reduce状态
+
+
+三个属性之间的转换关系：
+
+torch官方罗列了几个转换关系：
+
+
+Shard(dim) -> Replicate(): all_gather
+
+
+Shard(src_dim) -> Shard(dst_dim): all_to_all
+
+
+Replicate() -> Shard(dim): local chunking (i.e. torch.chunk)
+
+
+Partial() -> Replicate(): all_reduce
+
+
+Partial() -> Shard(dim): reduce_scatter
+
+
+API：
+一个DTensor可以由如下API创建：
+
+distribute_tensor() 接口
+
+local_tensor = torch.randn(8, 16, device=f"cuda:{rank}")
+
+dtensor_shard = distribute_tensor(
+    local_tensor,
+    device_mesh=mesh,
+    placements=[Shard(0)],
+)
+
+from local tensor
+
+local_tensor = torch.tensor([[1, 2], [3, 4]])
+dtensor_shard = DTensor(
+    local_tensor,
+    device_mesh=dist.DeviceMesh("cuda", list(range(world_size))),
+    placements=[dist.Placement("shard", dim=0)]  # 沿第0维分片
+)
+或者
+local_tensor = torch.tensor([1, 2, 3])
+dtensor = local_tensor.to_dtensor(
+    device_mesh=dist.DeviceMesh("cuda", [0,1]),
+    placements=[dist.Placement("replicate")]
+)
+
+工厂函数
+
+dtensor_ones = DTensor.ones(
+    (2, 4),
+    device_mesh=dist.DeviceMesh("cuda", list(range(world_size))),
+    placements=[dist.Placement("shard", dim=1)]
+)
+创建好DTensor之后，就可以把DTensor当作普通的Tensor对象去操作和运算，DTensor会为你在必要时插入所需要的通信操作。'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Posts","item":"https://zhouyeyu.github.io/posts/"},{"@type":"ListItem","position":2,"name":"PyTorch DTensor 功能及原理源码解读","item":"https://zhouyeyu.github.io/posts/pytorch-dtensor-%E5%8A%9F%E8%83%BD%E5%8F%8A%E5%8E%9F%E7%90%86%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"PyTorch DTensor 功能及原理源码解读","name":"PyTorch DTensor 功能及原理源码解读","description":"简介 PyTorch FSDP2 对比 FSDP1的升级上一篇文章梳理了FSDP2，于是顺着梳理下DTensor相关的内容。在DTensor出现之前，Pytorch 中的分布式张量主要依赖于 torch.distributed 模块下的DDP、 FSDP及第三方库如DeepSpeed、Megatron-LM 提供的并行能力。使用这些框架往往需要在代码中不断地插入通信(如all-gather、all-reduce等)，有了DTensor，降低用户手动管理通信操作的成本，进一步提高易用性，也是与torch的理念相匹配的。\nDTensor基本用法 基本属性 DTensor是torch.Tensor的子类，因此可以像普通tensor一样操作它。DTensor通过DeviceMesh建立各个rank之间的关系，并通过Placement描述当前的状态，主要有三个Placement：Shard、Replicate和Partial\nReplicate：每个rank拥有相同的完整参数；\nShard：每个rank只持有部份分块后的参数；\nPartial：每个rank只持有部份数据，目前是等待all-reduce状态\n三个属性之间的转换关系：\ntorch官方罗列了几个转换关系：\nShard(dim) -\u0026gt; Replicate(): all_gather\nShard(src_dim) -\u0026gt; Shard(dst_dim): all_to_all\nReplicate() -\u0026gt; Shard(dim): local chunking (i.e. torch.chunk)\nPartial() -\u0026gt; Replicate(): all_reduce\nPartial() -\u0026gt; Shard(dim): reduce_scatter\nAPI： 一个DTensor可以由如下API创建：\ndistribute_tensor() 接口 local_tensor = torch.randn(8, 16, device=f\u0026#34;cuda:{rank}\u0026#34;) dtensor_shard = distribute_tensor( local_tensor, device_mesh=mesh, placements=[Shard(0)], ) from local tensor local_tensor = torch.tensor([[1, 2], [3, 4]]) dtensor_shard = DTensor( local_tensor, device_mesh=dist.DeviceMesh(\u0026#34;cuda\u0026#34;, list(range(world_size))), placements=[dist.Placement(\u0026#34;shard\u0026#34;, dim=0)] # 沿第0维分片 ) 或者 local_tensor = torch.tensor([1, 2, 3]) dtensor = local_tensor.to_dtensor( device_mesh=dist.DeviceMesh(\u0026#34;cuda\u0026#34;, [0,1]), placements=[dist.Placement(\u0026#34;replicate\u0026#34;)] ) 工厂函数 dtensor_ones = DTensor.ones( (2, 4), device_mesh=dist.DeviceMesh(\u0026#34;cuda\u0026#34;, list(range(world_size))), placements=[dist.Placement(\u0026#34;shard\u0026#34;, dim=1)] ) 创建好DTensor之后，就可以把DTensor当作普通的Tensor对象去操作和运算，DTensor会为你在必要时插入所需要的通信操作。\n","keywords":["Tech","Pytorch","DTensor"],"articleBody":"简介 PyTorch FSDP2 对比 FSDP1的升级上一篇文章梳理了FSDP2，于是顺着梳理下DTensor相关的内容。在DTensor出现之前，Pytorch 中的分布式张量主要依赖于 torch.distributed 模块下的DDP、 FSDP及第三方库如DeepSpeed、Megatron-LM 提供的并行能力。使用这些框架往往需要在代码中不断地插入通信(如all-gather、all-reduce等)，有了DTensor，降低用户手动管理通信操作的成本，进一步提高易用性，也是与torch的理念相匹配的。\nDTensor基本用法 基本属性 DTensor是torch.Tensor的子类，因此可以像普通tensor一样操作它。DTensor通过DeviceMesh建立各个rank之间的关系，并通过Placement描述当前的状态，主要有三个Placement：Shard、Replicate和Partial\nReplicate：每个rank拥有相同的完整参数；\nShard：每个rank只持有部份分块后的参数；\nPartial：每个rank只持有部份数据，目前是等待all-reduce状态\n三个属性之间的转换关系：\ntorch官方罗列了几个转换关系：\nShard(dim) -\u003e Replicate(): all_gather\nShard(src_dim) -\u003e Shard(dst_dim): all_to_all\nReplicate() -\u003e Shard(dim): local chunking (i.e. torch.chunk)\nPartial() -\u003e Replicate(): all_reduce\nPartial() -\u003e Shard(dim): reduce_scatter\nAPI： 一个DTensor可以由如下API创建：\ndistribute_tensor() 接口 local_tensor = torch.randn(8, 16, device=f\"cuda:{rank}\") dtensor_shard = distribute_tensor( local_tensor, device_mesh=mesh, placements=[Shard(0)], ) from local tensor local_tensor = torch.tensor([[1, 2], [3, 4]]) dtensor_shard = DTensor( local_tensor, device_mesh=dist.DeviceMesh(\"cuda\", list(range(world_size))), placements=[dist.Placement(\"shard\", dim=0)] # 沿第0维分片 ) 或者 local_tensor = torch.tensor([1, 2, 3]) dtensor = local_tensor.to_dtensor( device_mesh=dist.DeviceMesh(\"cuda\", [0,1]), placements=[dist.Placement(\"replicate\")] ) 工厂函数 dtensor_ones = DTensor.ones( (2, 4), device_mesh=dist.DeviceMesh(\"cuda\", list(range(world_size))), placements=[dist.Placement(\"shard\", dim=1)] ) 创建好DTensor之后，就可以把DTensor当作普通的Tensor对象去操作和运算，DTensor会为你在必要时插入所需要的通信操作。\n原理 一个携带DTensor的算子调用时，会先被DTensor中定义的__torch_dispatch__给Hook住，优先执行DTensor定义的Dispatch内的逻辑；\ndef __torch_dispatch__(cls, func, types, args=(), kwargs=None): # type: ignore[override] return DTensor._op_dispatcher.dispatch( func, args, kwargs or {}, ) 进入Dispather后，通过这行代码解包出op_info，包含device_mesh、_local_tensor、_spec等分布式信息\nop_info = self.unwrap_to_op_info(op_call, args, kwargs) 基于分布式信息，推导shard规则，即以当前输入，输出的placement会是什么，这个推导有一定的优先级，源码中是这样描述的：\nMain dispatching logic. Follows precedence order: (1) custom_op_handler (2) registered sharding strategy, then rule (3) composite implicit autograd decomposition 除了自定义handler，优先级是strategy然后是rule，取决于算子的分布式注册方法，如果没有则尝试回退到composite实现。\npytorch通过@register_op_strategy注册生成的是strategy，会计算通信cost，优先级更高，通过@register_prop_rule注册的是rule，优先级较低。\n基于分布式信息和placement进行计算，并在计算前完成相应的通信操作，如all-gather等。在完成计算后，会根据是否仅保留local_tensor再次进行相应的通信操作。\n题外话 为什么__torch_dispatch__可以实现hook，在DTensor执行前顺利接管？ pytorch会check输入的对象中是否有__torch_dispatch__这个attr\nstatic bool check_has_torch_dispatch(PyObject* obj) { PyTypeObject* tp = Py_TYPE(obj); if (THPVariable_CheckTypeExact(tp)) { return false; } py::object attr = PyObject_FastGetAttrString(obj, \"__torch_dispatch__\"); return ( attr.ptr() != nullptr \u0026\u0026 attr.ptr() != torch::disabled_torch_dispatch_impl()); } 如果有就会尝试去为其增加python这个dispatch key\nif (has_torch_dispatch_if_known.has_value() ? *has_torch_dispatch_if_known : check_has_torch_dispatch(obj)) { var.unsafeGetTensorImpl()-\u003eset_python_dispatch(true); 而python key的优先级比cuda等dence key的优先级更高，会先被调用，因此可以实现这个hook 挖个坑🕳️，后面有空梳理下Dispatch优先级的内容\nReference https://docs.pytorch.org/docs/stable/distributed.tensor.html\n","wordCount":"199","inLanguage":"en","datePublished":"2025-12-23T22:37:00+08:00","dateModified":"2025-12-23T22:37:00+08:00","author":{"@type":"Person","name":"YuZhouye"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zhouyeyu.github.io/posts/pytorch-dtensor-%E5%8A%9F%E8%83%BD%E5%8F%8A%E5%8E%9F%E7%90%86%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/"},"publisher":{"@type":"Organization","name":"YuZhouye's Blog","logo":{"@type":"ImageObject","url":"https://zhouyeyu.github.io/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=nav><div class=logo><a href=https://zhouyeyu.github.io/ accesskey=h title="YuZhouye's Blog (Alt + H)">YuZhouye's Blog</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://zhouyeyu.github.io/blogs/ title=Blogs><span>Blogs</span></a></li><li><a href=https://zhouyeyu.github.io/categories/ title=Categories><span>Categories</span></a></li><li><a href=https://zhouyeyu.github.io/tags/ title=Tags><span>Tags</span></a></li><li><a href=https://zhouyeyu.github.io/search/ title="Search (Alt + /)" accesskey=/><span>Search</span></a></li><li><a href=https://zhouyeyu.github.io/about/ title=About><span>About</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><h1 class="post-title entry-hint-parent">PyTorch DTensor 功能及原理源码解读</h1><div class=post-meta><span title='2025-12-23 22:37:00 +0800 CST'>December 23, 2025</span>&nbsp;·&nbsp;<span>1 min</span>&nbsp;·&nbsp;<span>199 words</span>&nbsp;·&nbsp;<span>YuZhouye</span></div></header><div class=post-content><h2 id=简介>简介<a hidden class=anchor aria-hidden=true href=#简介>#</a></h2><p>PyTorch FSDP2 对比 FSDP1的升级上一篇文章梳理了FSDP2，于是顺着梳理下DTensor相关的内容。在DTensor出现之前，Pytorch 中的分布式张量主要依赖于 torch.distributed 模块下的DDP、 FSDP及第三方库如DeepSpeed、Megatron-LM 提供的并行能力。使用这些框架往往需要在代码中不断地插入通信(如all-gather、all-reduce等)，有了DTensor，降低用户手动管理通信操作的成本，进一步提高易用性，也是与torch的理念相匹配的。</p><h2 id=dtensor基本用法>DTensor基本用法<a hidden class=anchor aria-hidden=true href=#dtensor基本用法>#</a></h2><h3 id=基本属性>基本属性<a hidden class=anchor aria-hidden=true href=#基本属性>#</a></h3><p>DTensor是torch.Tensor的子类，因此可以像普通tensor一样操作它。DTensor通过DeviceMesh建立各个rank之间的关系，并通过Placement描述当前的状态，主要有三个Placement：Shard、Replicate和Partial</p><ul><li><p>Replicate：每个rank拥有相同的完整参数；</p></li><li><p>Shard：每个rank只持有部份分块后的参数；</p></li><li><p>Partial：每个rank只持有部份数据，目前是等待all-reduce状态</p></li></ul><p>三个属性之间的转换关系：</p><p><img alt="Image Alt Text" loading=lazy src=/DTensor/DTensor_01.jpg></p><p>torch官方罗列了几个转换关系：</p><ul><li><p>Shard(dim) -> Replicate(): all_gather</p></li><li><p>Shard(src_dim) -> Shard(dst_dim): all_to_all</p></li><li><p>Replicate() -> Shard(dim): local chunking (i.e. torch.chunk)</p></li><li><p>Partial() -> Replicate(): all_reduce</p></li><li><p>Partial() -> Shard(dim): reduce_scatter</p></li></ul><h3 id=api>API：<a hidden class=anchor aria-hidden=true href=#api>#</a></h3><p>一个DTensor可以由如下API创建：</p><ol><li><code>distribute_tensor()</code> 接口</li></ol><div class=highlight><pre tabindex=0 class=chroma><code class=language-py data-lang=py><span class=line><span class=cl><span class=n>local_tensor</span> <span class=o>=</span> <span class=n>torch</span><span class=o>.</span><span class=n>randn</span><span class=p>(</span><span class=mi>8</span><span class=p>,</span> <span class=mi>16</span><span class=p>,</span> <span class=n>device</span><span class=o>=</span><span class=sa>f</span><span class=s2>&#34;cuda:</span><span class=si>{</span><span class=n>rank</span><span class=si>}</span><span class=s2>&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=n>dtensor_shard</span> <span class=o>=</span> <span class=n>distribute_tensor</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>    <span class=n>local_tensor</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>    <span class=n>device_mesh</span><span class=o>=</span><span class=n>mesh</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>    <span class=n>placements</span><span class=o>=</span><span class=p>[</span><span class=n>Shard</span><span class=p>(</span><span class=mi>0</span><span class=p>)],</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span></code></pre></div><ol start=2><li><code>from local tensor</code></li></ol><div class=highlight><pre tabindex=0 class=chroma><code class=language-py data-lang=py><span class=line><span class=cl><span class=n>local_tensor</span> <span class=o>=</span> <span class=n>torch</span><span class=o>.</span><span class=n>tensor</span><span class=p>([[</span><span class=mi>1</span><span class=p>,</span> <span class=mi>2</span><span class=p>],</span> <span class=p>[</span><span class=mi>3</span><span class=p>,</span> <span class=mi>4</span><span class=p>]])</span>
+</span></span><span class=line><span class=cl><span class=n>dtensor_shard</span> <span class=o>=</span> <span class=n>DTensor</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>    <span class=n>local_tensor</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>    <span class=n>device_mesh</span><span class=o>=</span><span class=n>dist</span><span class=o>.</span><span class=n>DeviceMesh</span><span class=p>(</span><span class=s2>&#34;cuda&#34;</span><span class=p>,</span> <span class=nb>list</span><span class=p>(</span><span class=nb>range</span><span class=p>(</span><span class=n>world_size</span><span class=p>))),</span>
+</span></span><span class=line><span class=cl>    <span class=n>placements</span><span class=o>=</span><span class=p>[</span><span class=n>dist</span><span class=o>.</span><span class=n>Placement</span><span class=p>(</span><span class=s2>&#34;shard&#34;</span><span class=p>,</span> <span class=n>dim</span><span class=o>=</span><span class=mi>0</span><span class=p>)]</span>  <span class=c1># 沿第0维分片</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=n>或者</span>
+</span></span><span class=line><span class=cl><span class=n>local_tensor</span> <span class=o>=</span> <span class=n>torch</span><span class=o>.</span><span class=n>tensor</span><span class=p>([</span><span class=mi>1</span><span class=p>,</span> <span class=mi>2</span><span class=p>,</span> <span class=mi>3</span><span class=p>])</span>
+</span></span><span class=line><span class=cl><span class=n>dtensor</span> <span class=o>=</span> <span class=n>local_tensor</span><span class=o>.</span><span class=n>to_dtensor</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>    <span class=n>device_mesh</span><span class=o>=</span><span class=n>dist</span><span class=o>.</span><span class=n>DeviceMesh</span><span class=p>(</span><span class=s2>&#34;cuda&#34;</span><span class=p>,</span> <span class=p>[</span><span class=mi>0</span><span class=p>,</span><span class=mi>1</span><span class=p>]),</span>
+</span></span><span class=line><span class=cl>    <span class=n>placements</span><span class=o>=</span><span class=p>[</span><span class=n>dist</span><span class=o>.</span><span class=n>Placement</span><span class=p>(</span><span class=s2>&#34;replicate&#34;</span><span class=p>)]</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span></code></pre></div><ol start=3><li>工厂函数</li></ol><div class=highlight><pre tabindex=0 class=chroma><code class=language-py data-lang=py><span class=line><span class=cl><span class=n>dtensor_ones</span> <span class=o>=</span> <span class=n>DTensor</span><span class=o>.</span><span class=n>ones</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>    <span class=p>(</span><span class=mi>2</span><span class=p>,</span> <span class=mi>4</span><span class=p>),</span>
+</span></span><span class=line><span class=cl>    <span class=n>device_mesh</span><span class=o>=</span><span class=n>dist</span><span class=o>.</span><span class=n>DeviceMesh</span><span class=p>(</span><span class=s2>&#34;cuda&#34;</span><span class=p>,</span> <span class=nb>list</span><span class=p>(</span><span class=nb>range</span><span class=p>(</span><span class=n>world_size</span><span class=p>))),</span>
+</span></span><span class=line><span class=cl>    <span class=n>placements</span><span class=o>=</span><span class=p>[</span><span class=n>dist</span><span class=o>.</span><span class=n>Placement</span><span class=p>(</span><span class=s2>&#34;shard&#34;</span><span class=p>,</span> <span class=n>dim</span><span class=o>=</span><span class=mi>1</span><span class=p>)]</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span></code></pre></div><p>创建好DTensor之后，就可以把DTensor当作普通的Tensor对象去操作和运算，DTensor会为你在必要时插入所需要的通信操作。</p><h3 id=原理>原理<a hidden class=anchor aria-hidden=true href=#原理>#</a></h3><p>一个携带DTensor的算子调用时，会先被DTensor中定义的<code>__torch_dispatch__</code>给Hook住，优先执行DTensor定义的Dispatch内的逻辑；</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-py data-lang=py><span class=line><span class=cl>   <span class=k>def</span> <span class=nf>__torch_dispatch__</span><span class=p>(</span><span class=bp>cls</span><span class=p>,</span> <span class=n>func</span><span class=p>,</span> <span class=n>types</span><span class=p>,</span> <span class=n>args</span><span class=o>=</span><span class=p>(),</span> <span class=n>kwargs</span><span class=o>=</span><span class=kc>None</span><span class=p>):</span>  <span class=c1># type: ignore[override]</span>
+</span></span><span class=line><span class=cl>       <span class=k>return</span> <span class=n>DTensor</span><span class=o>.</span><span class=n>_op_dispatcher</span><span class=o>.</span><span class=n>dispatch</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>           <span class=n>func</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>           <span class=n>args</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>           <span class=n>kwargs</span> <span class=ow>or</span> <span class=p>{},</span>
+</span></span><span class=line><span class=cl>       <span class=p>)</span>
+</span></span></code></pre></div><p>进入Dispather后，通过这行代码解包出<code>op_info</code>，包含<code>device_mesh</code>、<code>_local_tensor</code>、<code>_spec</code>等分布式信息</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-py data-lang=py><span class=line><span class=cl><span class=n>op_info</span> <span class=o>=</span> <span class=bp>self</span><span class=o>.</span><span class=n>unwrap_to_op_info</span><span class=p>(</span><span class=n>op_call</span><span class=p>,</span> <span class=n>args</span><span class=p>,</span> <span class=n>kwargs</span><span class=p>)</span>
+</span></span></code></pre></div><p>基于分布式信息，推导shard规则，即以当前输入，输出的placement会是什么，这个推导有一定的优先级，源码中是这样描述的：</p><pre tabindex=0><code>        Main dispatching logic.  Follows precedence order:
+        (1) custom_op_handler
+        (2) registered sharding strategy, then rule
+        (3) composite implicit autograd decomposition
+</code></pre><p>除了自定义handler，优先级是strategy然后是rule，取决于算子的分布式注册方法，如果没有则尝试回退到composite实现。</p><p>pytorch通过<code>@register_op_strategy</code>注册生成的是strategy，会计算通信cost，优先级更高，通过<code>@register_prop_rule</code>注册的是rule，优先级较低。</p><p>基于分布式信息和placement进行计算，并在计算前完成相应的通信操作，如all-gather等。在完成计算后，会根据是否仅保留local_tensor再次进行相应的通信操作。</p><h2 id=题外话>题外话<a hidden class=anchor aria-hidden=true href=#题外话>#</a></h2><p>为什么<code>__torch_dispatch__</code>可以实现hook，在DTensor执行前顺利接管？
+pytorch会check输入的对象中是否有<code>__torch_dispatch__</code>这个attr</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl><span class=k>static</span> <span class=kt>bool</span> <span class=nf>check_has_torch_dispatch</span><span class=p>(</span><span class=n>PyObject</span><span class=o>*</span> <span class=n>obj</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=n>PyTypeObject</span><span class=o>*</span> <span class=n>tp</span> <span class=o>=</span> <span class=n>Py_TYPE</span><span class=p>(</span><span class=n>obj</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=k>if</span> <span class=p>(</span><span class=n>THPVariable_CheckTypeExact</span><span class=p>(</span><span class=n>tp</span><span class=p>))</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=nb>false</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl>  <span class=n>py</span><span class=o>::</span><span class=n>object</span> <span class=n>attr</span> <span class=o>=</span> <span class=n>PyObject_FastGetAttrString</span><span class=p>(</span><span class=n>obj</span><span class=p>,</span> <span class=s>&#34;__torch_dispatch__&#34;</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=k>return</span> <span class=p>(</span>
+</span></span><span class=line><span class=cl>      <span class=n>attr</span><span class=p>.</span><span class=n>ptr</span><span class=p>()</span> <span class=o>!=</span> <span class=k>nullptr</span> <span class=o>&amp;&amp;</span>
+</span></span><span class=line><span class=cl>      <span class=n>attr</span><span class=p>.</span><span class=n>ptr</span><span class=p>()</span> <span class=o>!=</span> <span class=n>torch</span><span class=o>::</span><span class=n>disabled_torch_dispatch_impl</span><span class=p>());</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></div><p>如果有就会尝试去为其增加python这个dispatch key</p><div class=highlight><pre tabindex=0 class=chroma><code class=language-cpp data-lang=cpp><span class=line><span class=cl>      <span class=k>if</span> <span class=p>(</span><span class=n>has_torch_dispatch_if_known</span><span class=p>.</span><span class=n>has_value</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>              <span class=o>?</span> <span class=o>*</span><span class=nl>has_torch_dispatch_if_known</span>
+</span></span><span class=line><span class=cl>              <span class=p>:</span> <span class=n>check_has_torch_dispatch</span><span class=p>(</span><span class=n>obj</span><span class=p>))</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=n>var</span><span class=p>.</span><span class=n>unsafeGetTensorImpl</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>set_python_dispatch</span><span class=p>(</span><span class=nb>true</span><span class=p>);</span>
+</span></span></code></pre></div><p>而python key的优先级比cuda等dence key的优先级更高，会先被调用，因此可以实现这个hook
+挖个坑🕳️，后面有空梳理下Dispatch优先级的内容</p><h3 id=reference>Reference<a hidden class=anchor aria-hidden=true href=#reference>#</a></h3><p><a href=https://docs.pytorch.org/docs/stable/distributed.tensor.html>https://docs.pytorch.org/docs/stable/distributed.tensor.html</a></p></div><footer class=post-footer><ul class=post-tags><li><a href=https://zhouyeyu.github.io/tags/tech/>Tech</a></li><li><a href=https://zhouyeyu.github.io/tags/pytorch/>Pytorch</a></li><li><a href=https://zhouyeyu.github.io/tags/dtensor/>DTensor</a></li></ul><nav class=paginav><a class=prev href=https://zhouyeyu.github.io/posts/pytorch-record_stream-%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/><span class=title>« Prev</span><br><span>PyTorch record_stream 源码解读</span>
+</a><a class=next href=https://zhouyeyu.github.io/posts/pytorch-fsdp2-%E5%AF%B9%E6%AF%94-fsdp1%E7%9A%84%E5%8D%87%E7%BA%A7/><span class=title>Next »</span><br><span>PyTorch FSDP2 对比 FSDP1的升级</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://zhouyeyu.github.io/>YuZhouye's Blog</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script>let menu=document.getElementById("menu");if(menu){const e=localStorage.getItem("menu-scroll-position");e&&(menu.scrollLeft=parseInt(e,10)),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}}document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{const e=document.querySelector("html");e.dataset.theme==="dark"?(e.dataset.theme="light",localStorage.setItem("pref-theme","light")):(e.dataset.theme="dark",localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

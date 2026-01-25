@@ -11,20 +11,41 @@
     <loc>https://zhouyeyu.github.io/</loc>
     <lastmod>2026-01-16T21:37:02+08:00</lastmod>
   </url><url>
-    <loc>https://zhouyeyu.github.io/tags/fsdp2/</loc>
-    <lastmod>2025-12-18T21:37:02+08:00</lastmod>
+    <loc>https://zhouyeyu.github.io/tags/pr%E8%A7%A3%E8%AF%BB/</loc>
+    <lastmod>2026-01-05T23:11:11+08:00</lastmod>
   </url><url>
     <loc>https://zhouyeyu.github.io/tags/pytorch/</loc>
+    <lastmod>2026-01-05T23:11:11+08:00</lastmod>
+  </url><url>
+    <loc>https://zhouyeyu.github.io/posts/pytorch-pr2-cudagraph%E4%B8%8B%E5%A4%9A%E6%B5%81%E6%98%BE%E5%AD%98%E5%A4%8D%E7%94%A8/</loc>
+    <lastmod>2026-01-05T23:11:11+08:00</lastmod>
+  </url><url>
+    <loc>https://zhouyeyu.github.io/tags/</loc>
+    <lastmod>2026-01-05T23:11:11+08:00</lastmod>
+  </url><url>
+    <loc>https://zhouyeyu.github.io/tags/tech/</loc>
+    <lastmod>2026-01-05T23:11:11+08:00</lastmod>
+  </url><url>
+    <loc>https://zhouyeyu.github.io/posts/pytorch-record_stream-%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/</loc>
+    <lastmod>2025-12-30T23:41:00+08:00</lastmod>
+  </url><url>
+    <loc>https://zhouyeyu.github.io/tags/record_stream/</loc>
+    <lastmod>2025-12-30T23:41:00+08:00</lastmod>
+  </url><url>
+    <loc>https://zhouyeyu.github.io/tags/dtensor/</loc>
+    <lastmod>2025-12-23T22:37:00+08:00</lastmod>
+  </url><url>
+    <loc>https://zhouyeyu.github.io/posts/pytorch-dtensor-%E5%8A%9F%E8%83%BD%E5%8F%8A%E5%8E%9F%E7%90%86%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/</loc>
+    <lastmod>2025-12-23T22:37:00+08:00</lastmod>
+  </url><url>
+    <loc>https://zhouyeyu.github.io/tags/fsdp2/</loc>
     <lastmod>2025-12-18T21:37:02+08:00</lastmod>
   </url><url>
     <loc>https://zhouyeyu.github.io/posts/pytorch-fsdp2-%E5%AF%B9%E6%AF%94-fsdp1%E7%9A%84%E5%8D%87%E7%BA%A7/</loc>
     <lastmod>2025-12-18T21:37:02+08:00</lastmod>
   </url><url>
-    <loc>https://zhouyeyu.github.io/tags/</loc>
-    <lastmod>2025-12-18T21:37:02+08:00</lastmod>
-  </url><url>
-    <loc>https://zhouyeyu.github.io/tags/tech/</loc>
-    <lastmod>2025-12-18T21:37:02+08:00</lastmod>
+    <loc>https://zhouyeyu.github.io/posts/pytorch-pr1%E4%B9%8Btorch.accelerator/</loc>
+    <lastmod>2025-12-07T20:44:02+08:00</lastmod>
   </url><url>
     <loc>https://zhouyeyu.github.io/about/</loc>
   </url><url>

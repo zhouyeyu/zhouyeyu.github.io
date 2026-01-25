@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Pr解读 on YuZhouye&#39;s Blog</title>
+    <link>https://zhouyeyu.github.io/tags/pr%E8%A7%A3%E8%AF%BB/</link>
+    <description>Recent content in Pr解读 on YuZhouye&#39;s Blog</description>
+    <generator>Hugo -- 0.154.5</generator>
+    <language>en-us</language>
+    <lastBuildDate>Mon, 05 Jan 2026 23:11:11 +0800</lastBuildDate>
+    <atom:link href="https://zhouyeyu.github.io/tags/pr%E8%A7%A3%E8%AF%BB/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>PyTorch pr(2) cudaGraph下多流显存复用</title>
+      <link>https://zhouyeyu.github.io/posts/pytorch-pr2-cudagraph%E4%B8%8B%E5%A4%9A%E6%B5%81%E6%98%BE%E5%AD%98%E5%A4%8D%E7%94%A8/</link>
+      <pubDate>Mon, 05 Jan 2026 23:11:11 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/posts/pytorch-pr2-cudagraph%E4%B8%8B%E5%A4%9A%E6%B5%81%E6%98%BE%E5%AD%98%E5%A4%8D%E7%94%A8/</guid>
+      <description>&lt;h2 id=&#34;cuda-reuse-blocks-with-record_stream-during-cuda-graph-capture-in-the-cudacachingallocator-158352&#34;&gt;[CUDA] Reuse blocks with record_stream during CUDA Graph capture in the CUDACachingAllocator #158352&lt;/h2&gt;
+&lt;p&gt;&lt;a href=&#34;https://github.com/pytorch/pytorch/pull/158352&#34;&gt;https://github.com/pytorch/pytorch/pull/158352&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;专栏另一篇文章解读了record_stream相关内容，但CUDACachingAllocator源码中存在一个分支，会根据CUDAAllocatorConfig::graph_capture_record_stream_reuse()判断是否free和malloc某个block，这里填个坑，找一下对应的pr看是怎么复用的。&lt;/p&gt;
+&lt;h2 id=&#34;背景cuda-graph-下显存管理限制&#34;&gt;背景：CUDA Graph 下显存管理限制&lt;/h2&gt;
+&lt;p&gt;在 CUDA Graph 捕获过程中，CUDACachingAllocator对内存的管理存在一个关键限制：必须等到捕获结束后才能回收内存块。这一限制源于 CUDA 的底层约束 —— 捕获阶段不允许查询event状态（因为此时 CUDA 操作尚未执行），而CUDACachingAllocator依赖事件驱动逻辑判断内存块是否可回收。而这会导致本该被释放的block未能被正确释放，直到捕获完全结束，比如free中的代码片段：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-cpp&#34; data-lang=&#34;cpp&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;k&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;!&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;block&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;stream_uses&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;empty&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;())&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;      &lt;span class=&#34;k&#34;&gt;if&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;C10_UNLIKELY&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;!&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;captures_underway&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;empty&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;()))&lt;/span&gt; &lt;span class=&#34;p&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;c1&#34;&gt;// It&amp;#39;s forbidden to cudaEventQuery an event recorded during CUDA graph
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;c1&#34;&gt;// capture. We conservatively defer recording end-of-life events until
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;c1&#34;&gt;// the next call to process_events() (which won&amp;#39;t happen until no
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;c1&#34;&gt;// captures are underway)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;        &lt;span class=&#34;n&#34;&gt;needs_events_deferred_until_no_capture&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;push_back&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;block&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;);&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id=&#34;cudagraph下安全的多流复用&#34;&gt;cudaGraph下安全的多流复用&lt;/h2&gt;
+&lt;p&gt;为实现安全重用，PR 首先明确了两个核心术语，作为后续判断逻辑的基础：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Free marker：通过cudaGraphAddEmptyNode创建的 “捕获合法” 空节点，插入到每个使用过该内存块的stream中，且位于该块最后一次被使用的操作之后，用于标记 “内存块已空闲”。&lt;/li&gt;
+&lt;li&gt;Terminal Node：流或捕获图中 “最新操作” 的集合，新捕获的操作会附加在终端节点之后。对于正在捕获的流，可通过cudaStreamGetCaptureInfo的dependencies_out参数获取终端节点集合。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;内存块可重用性判断规则&#34;&gt;内存块可重用性判断规则&lt;/h3&gt;
+&lt;p&gt;cudaGraph生成一个DAG，因此作者提出了两种平衡 “安全性” 与 “灵活性” 的判断规则：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>PyTorch pr(1)之torch.accelerator</title>
+      <link>https://zhouyeyu.github.io/posts/pytorch-pr1%E4%B9%8Btorch.accelerator/</link>
+      <pubDate>Sun, 07 Dec 2025 20:44:02 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/posts/pytorch-pr1%E4%B9%8Btorch.accelerator/</guid>
+      <description>&lt;h2 id=&#34;add-unified-memory-apis-for-torchaccelerator-152932&#34;&gt;Add unified memory APIs for torch.accelerator #152932&lt;/h2&gt;
+&lt;p&gt;&lt;a href=&#34;https://github.com/pytorch/pytorch/pull/152932&#34;&gt;https://github.com/pytorch/pytorch/pull/152932&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;为torch.accelerator增加了如下API：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;empty_cache&lt;/li&gt;
+&lt;li&gt;max_memory_allocated&lt;/li&gt;
+&lt;li&gt;max_memory_reserved&lt;/li&gt;
+&lt;li&gt;memory_allocated&lt;/li&gt;
+&lt;li&gt;memory_reserved&lt;/li&gt;
+&lt;li&gt;memory_stats&lt;/li&gt;
+&lt;li&gt;reset_accumulated_memory_stats&lt;/li&gt;
+&lt;li&gt;reset_peak_memory_stats&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这个pr进一步说明了PyTorch正在去CUDA化，从而转变为一系列加速器提供计算框架，即使他们的github主页仍然写着：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Tensors and Dynamic neural networks in Python with strong GPU acceleration&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;这些用法很长一段时间是为cuda提供的，调用方式主要为&lt;code&gt;torch.cuda.empty_cache&lt;/code&gt;等，接口主要作用是查看device上的显存占用如&lt;code&gt;memory_allocated&lt;/code&gt;和&lt;code&gt;memory_reserved&lt;/code&gt;，以及清理和重置相关状态。
+一起来看下相关函数的调用流程，以cuda为例，从源码分析这个接口是怎么一步一步获取底层的状态的。首先所有memory相关的数据都是从&lt;code&gt;memory_stats&lt;/code&gt;这个字典内提取对于的value&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-py&#34; data-lang=&#34;py&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;k&#34;&gt;def&lt;/span&gt; &lt;span class=&#34;nf&#34;&gt;memory_reserved&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;device_index&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;_device_t&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;kc&#34;&gt;None&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;/&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&#34;nb&#34;&gt;int&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;sa&#34;&gt;r&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;&amp;#34;&amp;#34;Return the current :ref:`accelerator&amp;lt;accelerators&amp;gt;` device memory managed by the caching allocator
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;s2&#34;&gt;    in bytes for a given device index.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;s2&#34;&gt;    Args:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;s2&#34;&gt;        device_index (:class:`torch.device`, str, int, optional): the index of the device to target.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;s2&#34;&gt;            If not given, use :func:`torch.accelerator.current_device_index` by default.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;s2&#34;&gt;            If a :class:`torch.device` or str is provided, its type must match the current
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;s2&#34;&gt;            :ref:`accelerator&amp;lt;accelerators&amp;gt;` device type.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;s2&#34;&gt;    &amp;#34;&amp;#34;&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;    &lt;span class=&#34;k&#34;&gt;return&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;memory_stats&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;device_index&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;.&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;get&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;s2&#34;&gt;&amp;#34;reserved_bytes.all.current&amp;#34;&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;mi&#34;&gt;0&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;而&lt;code&gt;memory_stas&lt;/code&gt;通过底层&lt;code&gt;_accelerator_getDeviceStats&lt;/code&gt;接口获取相关device的状态&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>
