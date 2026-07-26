@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>随笔 on YuZhouye&#39;s Blog</title>
+    <link>https://zhouyeyu.github.io/tags/%E9%9A%8F%E7%AC%94/</link>
+    <description>Recent content in 随笔 on YuZhouye&#39;s Blog</description>
+    <generator>Hugo -- 0.155.0</generator>
+    <language>en-us</language>
+    <lastBuildDate>Thu, 26 Mar 2026 19:03:50 +0800</lastBuildDate>
+    <atom:link href="https://zhouyeyu.github.io/tags/%E9%9A%8F%E7%AC%94/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Dtensor新特性FastPath</title>
+      <link>https://zhouyeyu.github.io/posts/dtensor%E6%96%B0%E7%89%B9%E6%80%A7fastpath/</link>
+      <pubDate>Thu, 26 Mar 2026 19:03:50 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/posts/dtensor%E6%96%B0%E7%89%B9%E6%80%A7fastpath/</guid>
+      <description>&lt;h1 id=&#34;dtensor-fastpath-技术分析&#34;&gt;DTensor FastPath 技术分析&lt;/h1&gt;
+&lt;h2 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;DTensor 的核心工作流是：&lt;strong&gt;拆包参数 → 推断输出分片策略 → 可能做 redistribute → 执行本地算子 → 包装结果&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;在 PyTorch 2.9 及之前版本中，这条路径完全在 Python 中执行，入口是 &lt;code&gt;__torch_dispatch__&lt;/code&gt;。dispatch 是存在开销的，往往被 &lt;code&gt;__torch_dispatch__&lt;/code&gt; 拦截后在 Python 侧的调库开销更大，甚至可能超过一些小算子的执行时间。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;关键 PR&lt;/strong&gt;：https://github.com/pytorch/pytorch/pull/167051&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;核心思想&lt;/strong&gt;：将操作搬到 C++，在 &lt;code&gt;python_arg_parser.cpp&lt;/code&gt; 的 &lt;code&gt;dispatch_on_subclass&lt;/code&gt; 层面拦截 DTensor，绕过 &lt;code&gt;__torch_dispatch__&lt;/code&gt; 协议，直接进入 C++ 实现的 &lt;code&gt;dispatchDTensorOp&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;2-核心机制&#34;&gt;2. 核心机制&lt;/h2&gt;
+&lt;h3 id=&#34;21-__torch_dispatch__-变更至-c&#34;&gt;2.1 &lt;code&gt;__torch_dispatch__&lt;/code&gt; 变更至 C++&lt;/h3&gt;
+&lt;h4 id=&#34;211-旧版本-__torch_dispatch__-拦截逻辑&#34;&gt;2.1.1 旧版本 &lt;code&gt;__torch_dispatch__&lt;/code&gt; 拦截逻辑&lt;/h4&gt;
+&lt;p&gt;在旧版中，DTensor 是一个标准的 Tensor subclass，算子分发走的是 PyTorch 的标准 &lt;code&gt;__torch_dispatch__&lt;/code&gt; 协议。先梳理一下 2.9 之前是怎么把 DTensor 全部通过 &lt;code&gt;__torch_dispatch__&lt;/code&gt; 处理的。&lt;/p&gt;
+&lt;p&gt;当 DTensor 被构造时（通过 &lt;code&gt;_make_dtensor&lt;/code&gt;），C++ 会检测它定义了 &lt;code&gt;__torch_dispatch__&lt;/code&gt;，于是在 tensor 的 &lt;code&gt;DispatchKeySet&lt;/code&gt; 上设置 &lt;code&gt;Python&lt;/code&gt; + &lt;code&gt;PythonTLSSnapshot&lt;/code&gt; 两个 key：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>显存碎片</title>
+      <link>https://zhouyeyu.github.io/posts/%E6%98%BE%E5%AD%98%E7%A2%8E%E7%89%87/</link>
+      <pubDate>Thu, 26 Mar 2026 19:03:50 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/posts/%E6%98%BE%E5%AD%98%E7%A2%8E%E7%89%87/</guid>
+      <description>&lt;h1 id=&#34;cuda-显存碎片问题诊断与解决方案&#34;&gt;CUDA 显存碎片问题：诊断与解决方案&lt;/h1&gt;
+&lt;h2 id=&#34;1-什么是显存碎片&#34;&gt;1. 什么是显存碎片&lt;/h2&gt;
+&lt;p&gt;深度学习训练过程中，PyTorch 通过 CUDA Caching Allocator 管理 GPU 显存。该 allocator 会向 CUDA driver 申请大块 segment，然后在内部按需切分为更小的 block 分配给各个 tensor。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;显存碎片&lt;/strong&gt;指的是：一个大 block 被中间插入的小 block 切分后，即使大 block 对应的 tensor 已释放，由于小 block 仍然存活，整个 segment 无法合并回收。这种碎片并非物理设备上真实的地址碎片，而是 Caching Allocator 层面的逻辑碎片。&lt;/p&gt;
+&lt;p&gt;典型场景：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;Step 1: allocator 申请一个大 segment
+        [LLLLLLLLLLLLLLLLLL]
+
+Step 2: 大 tensor 释放，但小 tensor 卡在中间
+        [____ss____________]
+             ↑ 小 block 存活，segment 无法合并
+
+Step 3: 下一轮需要同样大小的连续空间 → 找不到 → OOM
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;当这种情况以固定周期重复发生时（例如每个训练 step），碎片会不断累积，最终导致 OOM——即使 &lt;code&gt;nvidia-smi&lt;/code&gt; 显示仍有大量空闲显存。&lt;/p&gt;
+&lt;h2 id=&#34;2-如何判断-oom-是否由碎片引起&#34;&gt;2. 如何判断 OOM 是否由碎片引起&lt;/h2&gt;
+&lt;h3 id=&#34;21-使用-pytorch-memory-visualizer&#34;&gt;2.1 使用 PyTorch Memory Visualizer&lt;/h3&gt;
+&lt;p&gt;PyTorch 提供了官方的显存分析工具：https://docs.pytorch.org/memory_viz&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>电子产品的长期主义</title>
+      <link>https://zhouyeyu.github.io/posts/%E7%94%B5%E5%AD%90%E4%BA%A7%E5%93%81%E7%9A%84%E9%95%BF%E6%9C%9F%E4%B8%BB%E4%B9%89/</link>
+      <pubDate>Sat, 07 Feb 2026 15:03:50 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/posts/%E7%94%B5%E5%AD%90%E4%BA%A7%E5%93%81%E7%9A%84%E9%95%BF%E6%9C%9F%E4%B8%BB%E4%B9%89/</guid>
+      <description>&lt;p&gt;刚刚完成学生到职场的身份转变————本质上是收入来源从父母到自己的转变，我开始回过头来review自己的消费观。以及，什么样的产品，能叫具有长期主义的电子产品。&lt;/p&gt;
+&lt;p&gt;作为一个学生而言，除了钱什么都不缺，我有的是时间和精力还有热情去做自己想做的事情，就拿手机举例，我会买小米手机————以一个较低的价格获取更好的硬件，然后去尝试给它刷各种系统、尝试解除温控、尝试root+探索。总而言之，是用时间（你要付出时间精力去学习理解参数并选择）换取金钱。&lt;/p&gt;
+&lt;p&gt;聊聊我的电子产品：2018，伴随着入学季，老妈为我购买了一台戴尔G3笔记本，iPad是哥哥给我的高考超过600分的奖励，另外一个电子产品是高中时期的红米手机。当然，这么多年过去了，手机已经不知道换了多少部，戴尔G3虽然也没有更换，但它的稳定性太差了，在它身上也没少折腾，拆机、清灰、换风扇、加内存条，现在不到必须使用window的情况下，我一般也不会打开它。至于这台iPad，3000块，七年过去了，二手市场的均价仍然在500块。虽然是非全贴合屏幕+60hz，但他对我产生过一些影响。本科的时候用这台iPad和一只Apple Pencil写下了无数的课堂笔记，至今做笔记这个功能它仍然可以满足我，当然，除此之外，现在它的作用也只有作为连接蓝牙的音乐播放器和电纸书了。我潜意识里认为的这台iPad是性价比最高的产品，原因应该是&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;它曾经足够好用&lt;/li&gt;
+&lt;li&gt;它现在依旧能基本满足作为一台平板的功能&lt;/li&gt;
+&lt;li&gt;它足够稳定，我几乎不需要考虑维修和折腾，充好电，它就可靠&lt;/li&gt;
+&lt;li&gt;它为我的成长做出过一些贡献&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;我现在慢慢觉得，一个你经常会用到的东西，它必须足够稳定和优秀，才能降低你对自身时间和精力的浪费，本质上，是用金钱换取为数不多的时间和精力了。我最近很喜欢的电子产品是Airpods Pro3，也是我终于舍得狠下心尝试的一款产品。我读书的时候也买过降噪耳机，Vivo TWS 3，降噪的确还算强，但是当时没有做足功课，它的音质我只能用垃圾形容，但我还是使用了它相当长的一段时间。直到我购买了Airpods Pro3，第一次戴上它我的脑海里只有震惊，给不接触电子产品的女朋友体验后，她说你在路上的时候千万不要戴它，注意安全。现在，它已经成为我上班时必备的工具之一了，我总是在想，如果上学时狠狠心购买的是Airpods Pro2就好了。一千块，其实几乎不会改变我的生活，但体验往往是截然不同的。&lt;/p&gt;
+&lt;p&gt;现在，对于电子产品的选购，我的买点：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;稳定，一个产品稳定与否，取决于开发团队的态度，也决定了这个产品的生命周期&lt;/li&gt;
+&lt;li&gt;短期足够好用，长期能提供它作为该类型产品的基本功能&lt;/li&gt;
+&lt;li&gt;价格并不代表价格，贬值率才代表价格&lt;/li&gt;
+&lt;/ol&gt;</description>
+    </item>
+    <item>
+      <title>迷茫与长期主义</title>
+      <link>https://zhouyeyu.github.io/posts/%E9%95%BF%E6%9C%9F%E4%B8%BB%E4%B9%89%E4%B8%8E%E6%88%91%E7%9A%84%E8%BF%B7%E8%8C%AB/</link>
+      <pubDate>Sat, 07 Feb 2026 14:18:20 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/posts/%E9%95%BF%E6%9C%9F%E4%B8%BB%E4%B9%89%E4%B8%8E%E6%88%91%E7%9A%84%E8%BF%B7%E8%8C%AB/</guid>
+      <description>&lt;p&gt;时常感到焦虑，焦虑的来源是迷茫，是对未来生活的不确定性。但是有一些事情可以贯穿时间，在更长的跨度范围内给予一个人在某方面甚至整体上的成长，这就是长期主义。&lt;/p&gt;
+&lt;p&gt;想一下在我的视角里可以被称之为长期主义的事情：读书，电影（我指的是已经经过时间考验的经典的作品），投资（观念、认知、知识广度），音乐（一件乐器），以及我现在在做的事情（复盘、总结、记录）。但这些事情往往很花时间，而且是完整的大块时间，而不是碎片化的垃圾时间。&lt;/p&gt;
+&lt;p&gt;于我而言，这两件反而是相互矛盾的事情，正是因为它足够长期，反而使我无法从中获得积极的反馈。我知道我需要做一些长期的事情，但是时间和精力被工作挤满后，想做的事情只能一拖再拖。&lt;/p&gt;
+&lt;p&gt;但是我又好奇，如果我真的做了这些事情，它一定切切实实地会给予我回报吗？或者从概率的角度出发，它大概率会给予我一个正向的回报吗？如果答案是yes，那为什么不放弃工作，而专心于这几件长期的事情？如果答案是no，那它们还是长期主义的事情吗？&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>
