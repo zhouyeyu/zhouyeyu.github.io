@@ -6,8 +6,33 @@
     <description>Recent content on YuZhouye&#39;s Blog</description>
     <generator>Hugo -- 0.155.0</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 03 Apr 2026 10:00:00 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 26 Jul 2026 20:03:50 +0800</lastBuildDate>
     <atom:link href="https://zhouyeyu.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>PyTorch Tensor 与 TensorImpl 机制解读</title>
+      <link>https://zhouyeyu.github.io/posts/tensorimpl/</link>
+      <pubDate>Sun, 26 Jul 2026 20:03:50 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/posts/tensorimpl/</guid>
+      <description>&lt;h1 id=&#34;pytorch-tensor-与-tensorimpl-机制解读&#34;&gt;PyTorch Tensor 与 TensorImpl 机制解读&lt;/h1&gt;
+&lt;h2 id=&#34;1-为什么要把-tensor-和-tensorimpl-分成两层&#34;&gt;1. 为什么要把 Tensor 和 TensorImpl 分成两层&lt;/h2&gt;
+&lt;p&gt;初次接触 PyTorch 源码的人常有一个疑惑：Python 里 &lt;code&gt;torch.Tensor&lt;/code&gt; 明明是一个对象，为什么 C++ 里又有 &lt;code&gt;at::Tensor&lt;/code&gt; 和 &lt;code&gt;c10::TensorImpl&lt;/code&gt; 两个类？&lt;/p&gt;
+&lt;p&gt;答案是&lt;strong&gt;值语义 vs 数据本体&lt;/strong&gt;的分离：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;at::Tensor&lt;/code&gt;：一个轻量的&amp;quot;引用/handle&amp;quot;，本身几乎不存储数据，可以随意拷贝、传参、放进容器，开销只是一次引用计数的加减。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;c10::TensorImpl&lt;/code&gt;：真正持有 sizes/strides/dtype/device/storage 等元信息的对象，在堆上只有一份。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;多个 &lt;code&gt;at::Tensor&lt;/code&gt; 可以指向同一个 &lt;code&gt;TensorImpl&lt;/code&gt;（比如 view 操作、赋值拷贝），它们共享同一份元信息和底层数据，改一个，另一个也能看到变化——这正是 PyTorch &amp;ldquo;view 语义&amp;quot;和&amp;quot;就地修改语义&amp;quot;的根基。&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;at::Tensor a;          at::Tensor b = a;   // 只拷贝了指针，refcount+1
+     │                        │
+     └──────────┬─────────────┘
+                ▼
+        c10::TensorImpl (堆上唯一一份)
+        ├── sizes/strides
+        ├── storage_ ──────────► StorageImpl（真正的数据 buffer）
+        ├── dtype / device
+        └── ...
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这种设计在 C++ 里通过 &lt;code&gt;c10::intrusive_ptr&amp;lt;TensorImpl&amp;gt;&lt;/code&gt; 实现：&lt;code&gt;at::Tensor&lt;/code&gt; 内部只有一个 &lt;code&gt;intrusive_ptr&amp;lt;TensorImpl&amp;gt;&lt;/code&gt; 成员，拷贝 &lt;code&gt;Tensor&lt;/code&gt; 就是拷贝这个智能指针。&lt;/p&gt;</description>
+    </item>
     <item>
       <title>[VibeCoding]NTFS4Mac - 免费macOS的NTFS读写工具</title>
       <link>https://zhouyeyu.github.io/posts/ntfs4mac-macos%E4%B8%8A%E7%9A%84ntfs%E8%AF%BB%E5%86%99%E5%B7%A5%E5%85%B7/</link>

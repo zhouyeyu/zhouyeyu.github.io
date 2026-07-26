@@ -6,8 +6,29 @@
     <description>Recent content in Tags on YuZhouye&#39;s Blog</description>
     <generator>Hugo -- 0.155.0</generator>
     <language>en-us</language>
-    <lastBuildDate>Thu, 26 Mar 2026 19:03:50 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 26 Jul 2026 20:03:50 +0800</lastBuildDate>
     <atom:link href="https://zhouyeyu.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>PyTorch</title>
+      <link>https://zhouyeyu.github.io/tags/pytorch/</link>
+      <pubDate>Sun, 26 Jul 2026 20:03:50 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/tags/pytorch/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Tech</title>
+      <link>https://zhouyeyu.github.io/tags/tech/</link>
+      <pubDate>Sun, 26 Jul 2026 20:03:50 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/tags/tech/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>TensorImpl</title>
+      <link>https://zhouyeyu.github.io/tags/tensorimpl/</link>
+      <pubDate>Sun, 26 Jul 2026 20:03:50 +0800</pubDate>
+      <guid>https://zhouyeyu.github.io/tags/tensorimpl/</guid>
+      <description></description>
+    </item>
     <item>
       <title>Life</title>
       <link>https://zhouyeyu.github.io/tags/life/</link>
@@ -34,20 +55,6 @@
       <link>https://zhouyeyu.github.io/tags/cachingallocator/</link>
       <pubDate>Sun, 08 Feb 2026 17:19:40 +0800</pubDate>
       <guid>https://zhouyeyu.github.io/tags/cachingallocator/</guid>
-      <description></description>
-    </item>
-    <item>
-      <title>Pytorch</title>
-      <link>https://zhouyeyu.github.io/tags/pytorch/</link>
-      <pubDate>Sun, 08 Feb 2026 17:19:40 +0800</pubDate>
-      <guid>https://zhouyeyu.github.io/tags/pytorch/</guid>
-      <description></description>
-    </item>
-    <item>
-      <title>Tech</title>
-      <link>https://zhouyeyu.github.io/tags/tech/</link>
-      <pubDate>Sun, 08 Feb 2026 17:19:40 +0800</pubDate>
-      <guid>https://zhouyeyu.github.io/tags/tech/</guid>
       <description></description>
     </item>
     <item>
